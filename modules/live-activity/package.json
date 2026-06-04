@@ -1,0 +1,14 @@
+{
+  "name": "live-activity",
+  "version": "0.1.0",
+  "description": "Local Expo module bridging React Native to iOS ActivityKit",
+  "main": "index.ts",
+  "private": true,
+  "scripts": {},
+  "dependencies": {},
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

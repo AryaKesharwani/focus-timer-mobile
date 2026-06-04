@@ -8,7 +8,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.aryak.focustimer"
+      "bundleIdentifier": "com.aryak.focustimer",
+      "infoPlist": {
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true
+      }
     },
     "android": {
       "package": "com.aryak.focustimer",
@@ -22,7 +26,8 @@
     "plugins": [
       "expo-asset",
       "expo-notifications",
-      "expo-audio"
+      "expo-audio",
+      "@bacons/apple-targets"
     ]
   }
 }
