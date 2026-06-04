@@ -5,6 +5,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import * as Notifications from 'expo-notifications';
 import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
+import { LiveActivity } from 'live-activity';
 import {
   useCallback,
   useEffect,
@@ -252,6 +253,7 @@ export default function App() {
     () => () => {
       clearInternalTimer();
       cancelScheduledNotif();
+      LiveActivity.end().catch(() => {});
     },
     [clearInternalTimer, cancelScheduledNotif],
   );
@@ -305,16 +307,26 @@ export default function App() {
     async (nextMode: Mode, durationSec: number, label?: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       await cancelScheduledNotif();
-      endTimeRef.current = Date.now() + durationSec * 1000;
+      const now = Date.now();
+      const endAt = now + durationSec * 1000;
+      endTimeRef.current = endAt;
       setMode(nextMode);
       setTotalSeconds(durationSec);
       setRemaining(durationSec);
+      const sessionLabel = nextMode === 'focus' ? (label ?? taskLabel) : '';
       if (nextMode === 'focus') {
-        setActiveLabel(label ?? taskLabel);
+        setActiveLabel(sessionLabel);
       }
       setPhase('running');
       const id = await scheduleEndNotification(nextMode, durationSec);
       notifIdRef.current = id;
+      LiveActivity.start({
+        startTime: now,
+        endTime: endAt,
+        totalDuration: durationSec,
+        mode: nextMode,
+        label: sessionLabel,
+      }).catch(() => {});
     },
     [cancelScheduledNotif, taskLabel],
   );
@@ -342,6 +354,7 @@ export default function App() {
       setRemaining(durationMinutes * 60);
       setActiveLabel('');
       setPhase('idle');
+      LiveActivity.end().catch(() => {});
     }
   }, [
     mode,
@@ -365,13 +378,22 @@ export default function App() {
   const pause = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     clearInternalTimer();
-    if (endTimeRef.current != null) {
-      setRemaining(Math.max(0, (endTimeRef.current - Date.now()) / 1000));
-    }
+    const pausedRemainingSec =
+      endTimeRef.current != null
+        ? Math.max(0, (endTimeRef.current - Date.now()) / 1000)
+        : remaining;
+    setRemaining(pausedRemainingSec);
     endTimeRef.current = null;
     await cancelScheduledNotif();
     setPhase('paused');
-  }, [clearInternalTimer, cancelScheduledNotif]);
+    LiveActivity.update({
+      endTime: Date.now() + pausedRemainingSec * 1000,
+      mode,
+      label: activeLabel,
+      isPaused: true,
+      pausedRemainingSec,
+    }).catch(() => {});
+  }, [clearInternalTimer, cancelScheduledNotif, mode, activeLabel, remaining]);
 
   const reset = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
@@ -383,6 +405,7 @@ export default function App() {
     setRemaining(durationMinutes * 60);
     setActiveLabel('');
     setPhase('idle');
+    LiveActivity.end().catch(() => {});
   }, [clearInternalTimer, cancelScheduledNotif, durationMinutes]);
 
   const selectDuration = useCallback(

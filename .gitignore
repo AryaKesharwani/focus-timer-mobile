@@ -5,5 +5,5 @@ web-build/
 *.log
 .DS_Store
 .env*.local
-ios/
-android/
+/ios/
+/android/
