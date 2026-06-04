@@ -33,7 +33,7 @@ struct FocusTimerLiveActivity: Widget {
               Text("Paused")
                 .font(.caption)
                 .foregroundColor(.gray)
-            } else {
+            } else if context.attributes.startTime < context.state.endTime {
               ProgressView(
                 timerInterval: context.attributes.startTime...context.state.endTime,
                 countsDown: false
@@ -62,6 +62,8 @@ struct FocusTimerLiveActivity: Widget {
   private func countdownText(state: FocusTimerAttributes.ContentState) -> some View {
     if state.isPaused {
       Text(formatPaused(state.pausedRemainingSec))
+    } else if Date.now >= state.endTime {
+      Text("00:00")
     } else {
       Text(timerInterval: Date.now...state.endTime, countsDown: true)
         .multilineTextAlignment(.center)
@@ -107,6 +109,12 @@ struct FocusTimerLiveActivity: Widget {
 struct LockScreenView: View {
   let context: ActivityViewContext<FocusTimerAttributes>
 
+  private static let endTimeFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.timeStyle = .short
+    return f
+  }()
+
   var body: some View {
     HStack(alignment: .center, spacing: 16) {
       VStack(alignment: .leading, spacing: 6) {
@@ -122,7 +130,7 @@ struct LockScreenView: View {
         Text(subtitle)
           .font(.caption2)
           .foregroundColor(.gray)
-        if !context.state.isPaused {
+        if !context.state.isPaused && context.attributes.startTime < context.state.endTime {
           ProgressView(
             timerInterval: context.attributes.startTime...context.state.endTime,
             countsDown: false
@@ -145,6 +153,8 @@ struct LockScreenView: View {
     if context.state.isPaused {
       let s = Int(max(0, context.state.pausedRemainingSec))
       Text(String(format: "%02d:%02d", s / 60, s % 60))
+    } else if Date.now >= context.state.endTime {
+      Text("00:00")
     } else {
       Text(timerInterval: Date.now...context.state.endTime, countsDown: true)
     }
@@ -161,9 +171,7 @@ struct LockScreenView: View {
 
   private var subtitle: String {
     if context.state.isPaused { return "Paused" }
-    let f = DateFormatter()
-    f.timeStyle = .short
-    return "Until \(f.string(from: context.state.endTime))"
+    return "Until \(Self.endTimeFormatter.string(from: context.state.endTime))"
   }
 
   private var icon: String {

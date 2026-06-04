@@ -31,14 +31,15 @@ public class LiveActivityModule: Module {
       let mode = (args["mode"] as? String) ?? "focus"
       let label = (args["label"] as? String) ?? ""
 
-      // End any existing activity before starting a new one.
-      Task {
-        if let id = self.currentActivityId {
-          for activity in Activity<FocusTimerAttributes>.activities where activity.id == id {
-            await activity.end(nil, dismissalPolicy: .immediate)
-          }
-          self.currentActivityId = nil
+      // End any existing activity (including orphans from a previous launch
+      // that survived after the app process was killed) before starting a new
+      // one. currentActivityId is reset on each launch, so the in-memory ID
+      // is not authoritative — iterate every activity of our attributes type.
+      Task { @MainActor in
+        for activity in Activity<FocusTimerAttributes>.activities {
+          await activity.end(nil, dismissalPolicy: .immediate)
         }
+        self.currentActivityId = nil
 
         do {
           let attributes = FocusTimerAttributes(
@@ -75,13 +76,18 @@ public class LiveActivityModule: Module {
       let isPaused = (args["isPaused"] as? Bool) ?? false
       let pausedRemainingSec = (args["pausedRemainingSec"] as? Double) ?? 0
 
-      Task {
-        guard let id = self.currentActivityId,
-              let activity = Activity<FocusTimerAttributes>.activities.first(where: { $0.id == id })
-        else {
+      Task { @MainActor in
+        // Prefer the activity we created in this process, but fall back to
+        // the first live activity of our type if the process was relaunched
+        // after a previous activity started (currentActivityId is in-memory).
+        let activity = Activity<FocusTimerAttributes>.activities
+          .first(where: { $0.id == self.currentActivityId })
+          ?? Activity<FocusTimerAttributes>.activities.first
+        guard let activity else {
           promise.resolve(nil)
           return
         }
+        self.currentActivityId = activity.id
         let state = FocusTimerAttributes.ContentState(
           endTime: Date(timeIntervalSince1970: endTimeMs / 1000),
           mode: mode,
@@ -99,12 +105,7 @@ public class LiveActivityModule: Module {
         promise.resolve(nil)
         return
       }
-      Task {
-        if let id = self.currentActivityId,
-           let activity = Activity<FocusTimerAttributes>.activities.first(where: { $0.id == id }) {
-          await activity.end(nil, dismissalPolicy: .immediate)
-        }
-        // Also clean any orphaned activities from a previous launch.
+      Task { @MainActor in
         for activity in Activity<FocusTimerAttributes>.activities {
           await activity.end(nil, dismissalPolicy: .immediate)
         }
